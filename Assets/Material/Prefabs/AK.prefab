@@ -268,17 +268,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0882a9e5fb71eab4caf1fcfb40ec2ab2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Pistol
-  ammoType: 0
+  ammoType: 1
   Cooldown: 0.3
   IsAuto: 1
   BulletObject: {fileID: 183877745349647665, guid: 31608eb8772b12f4db70f04373950fea, type: 3}
   DisappearDistance: 20
-  PositionOffset: {x: 0, y: 0.3, z: 0}
+  PositionOffset: {x: 0, y: 0, z: 0}
   ShootingAudioClip: {fileID: 8300000, guid: b2e3730ca3d22ca4a8d68c0a9bb4ad59, type: 3}
   NoAmmoAudioClip: {fileID: 8300000, guid: 7b86c96a4c641aa46bb3c284339e3848, type: 3}
   shootingVolume: 1
   noAmmoVolume: 1
-  ammoTextMeshRef: {fileID: 0}
+  ammoTextMeshObject: {fileID: 0}
   ammoPatternRef: {fileID: 0}
 --- !u!58 &6402369321694509383
 CircleCollider2D:

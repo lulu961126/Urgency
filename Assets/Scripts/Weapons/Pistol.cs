@@ -28,7 +28,7 @@ public class Pistol : MonoBehaviour
 
     [Header("UI References")]
     [Tooltip("如果留空，會自動根據 Tag 'AmmoLeft' 找尋")]
-    [SerializeField] private TextMeshProUGUI ammoTextMeshRef;
+    [SerializeField] private GameObject ammoTextMeshObject;
     [Tooltip("對應此武器的彈藥圖案物件（例如手槍圖示、步槍圖示）")]
     [SerializeField] private GameObject ammoPatternRef;
 
@@ -40,7 +40,7 @@ public class Pistol : MonoBehaviour
     
     private TextMeshProUGUI ammoTextMesh;
     private GameObject ammoPattern;
-    private Collider2D playerCollider; 
+    private Collider2D[] playerColliders; 
     private Action<InputAction.CallbackContext> Trigger;
     private Action<InputAction.CallbackContext> TriggerLeave;
 
@@ -114,20 +114,23 @@ public class Pistol : MonoBehaviour
 
         if (!BulletObject) return;
         
-        // 尋找玩家碰撞體（緩存處理）
-        if (playerCollider == null)
-            playerCollider = GetComponentInParent<Collider2D>();
+        // 抓取玩家身上所有的 Collider（包含子物件）
+        if (playerColliders == null || playerColliders.Length == 0)
+            playerColliders = GetComponentsInParent<Collider2D>();
 
         // 使用物件池生成子彈
         GameObject bullet = ObjectPoolManager.Instance.Spawn(BulletObject, transform.position + PositionOffset, transform.rotation);
         
-        if (bullet != null && playerCollider != null)
+        if (bullet != null && playerColliders != null)
         {
             Collider2D bulletCollider = bullet.GetComponent<Collider2D>();
             if (bulletCollider != null)
             {
-                // 關鍵：讓子彈忽略射擊者的碰撞
-                Physics2D.IgnoreCollision(playerCollider, bulletCollider);
+                // 遍歷所有玩家碰撞體，通通忽略
+                foreach (var pCol in playerColliders)
+                {
+                    if (pCol != null) Physics2D.IgnoreCollision(pCol, bulletCollider);
+                }
             }
         }
 
@@ -135,6 +138,9 @@ public class Pistol : MonoBehaviour
         CurrentAmmoCount = Mathf.Max(0, CurrentAmmoCount - 1);
         elapsed = 0f;
         autoNoAmmoLock = false;
+
+        // 刷新 UI
+        UpdateAmmoUI();
 
         // 播放射擊音效
         if (ShootingAudioClip)
@@ -167,11 +173,27 @@ public class Pistol : MonoBehaviour
         actions = Inputs.Actions;
         actions.Player.Enable();
 
-        // 獲取 UI 參考
-        ammoTextMesh = ammoTextMeshRef ? ammoTextMeshRef : GameObject.FindWithTag("AmmoLeft")?.GetComponent<TextMeshProUGUI>();
+        // 獲取 UI 參考 (加強版自動搜尋)
+        if (ammoTextMesh == null)
+        {
+            GameObject textGo = ammoTextMeshObject;
+            // 如果沒拖入，就用 Tag 找
+            if (textGo == null) textGo = GameObject.FindWithTag("AmmoLeft");
+
+            if (textGo != null)
+                ammoTextMesh = textGo.GetComponent<TextMeshProUGUI>();
+            else
+                Debug.LogWarning($"[Pistol] 在場景中找不到 Tag 為 'AmmoLeft' 的文字物件，請檢查 UI 設定。");
+        }
         
-        // 彈藥圖案：優先使用拖入的，否則找 Tag
-        ammoPattern = ammoPatternRef ? ammoPatternRef : GameObject.FindWithTag("AmmoPattern");
+        if (ammoPattern == null)
+        {
+            ammoPattern = ammoPatternRef;
+            if (ammoPattern == null)
+            {
+                ammoPattern = GameObject.FindWithTag("AmmoPattern");
+            }
+        }
 
         // 綁定輸入
         Trigger ??= _ => {
@@ -196,8 +218,10 @@ public class Pistol : MonoBehaviour
             if (TriggerLeave != null) actions.Player.Attack.canceled -= TriggerLeave;
         }
 
-        // 隱藏彈藥圖案
+        // 隱藏彈藥圖案與清空文字（避免換到空手時殘留）
         if (ammoPattern) ammoPattern.SetActive(false);
+        if (ammoTextMesh) ammoTextMesh.text = "";
+        
         isHolding = false;
         autoNoAmmoLock = false;
     }

@@ -130,7 +130,7 @@ MonoBehaviour:
   IsAuto: 0
   BulletObject: {fileID: 183877745349647665, guid: 30a9275bd8f508549bc9e3eec23f9aca, type: 3}
   DisappearDistance: 10
-  PositionOffset: {x: 0, y: 0.3, z: 0}
+  PositionOffset: {x: 0, y: 0, z: 0}
   ShootingAudioClip: {fileID: 8300000, guid: d5672cad8ca62de48a8ee5f2fc42a936, type: 3}
   NoAmmoAudioClip: {fileID: 8300000, guid: 7b86c96a4c641aa46bb3c284339e3848, type: 3}
   shootingVolume: 1

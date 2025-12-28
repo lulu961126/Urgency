@@ -117,6 +117,15 @@ public static class Informations
             else
             {
                 Debug.LogWarning($"[Informations] 槽位 {selectedContainer} 沒有物品");
+                // 🔹 如果沒拿東西，隱藏彈藥 UI，避免顯示預設的弓箭圖案
+                var ammoUI = GameObject.FindWithTag("AmmoPattern");
+                if (ammoUI) ammoUI.SetActive(false);
+                var ammoText = GameObject.FindWithTag("AmmoLeft");
+                if (ammoText)
+                {
+                    var tm = ammoText.GetComponent<TMPro.TextMeshProUGUI>();
+                    if (tm) tm.text = "";
+                }
             }
 
             Debug.Log($"[Informations] === SelectedContainer setter 結束 ===");
