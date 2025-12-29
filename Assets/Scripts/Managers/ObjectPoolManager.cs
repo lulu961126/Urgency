@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 簡單的物件池管理器 - 減少 Instantiate 與 Destroy 的開銷
+/// 通用的物件池管理器。透過回收重複利用物件（如子彈、特效）來降低頻繁生成與銷毀帶來的效能開銷。
 /// </summary>
 public class ObjectPoolManager : MonoBehaviour
 {
@@ -18,7 +18,6 @@ public class ObjectPoolManager : MonoBehaviour
                 {
                     GameObject go = new GameObject("_ObjectPoolManager");
                     instance = go.AddComponent<ObjectPoolManager>();
-                    // DontDestroyOnLoad(go); // 如果需要跨場景則開啟
                 }
             }
             return instance;
@@ -29,18 +28,12 @@ public class ObjectPoolManager : MonoBehaviour
 
     private void Awake()
     {
-        if (instance == null)
-        {
-            instance = this;
-        }
-        else if (instance != this)
-        {
-            Destroy(gameObject);
-        }
+        if (instance == null) instance = this;
+        else if (instance != this) Destroy(gameObject);
     }
 
     /// <summary>
-    /// 從池中取得物件，如果池空則生成新的
+    /// 從池中取得一個物件實例。若池中無可用物件，則會根據 Prefab 實例化一個新的。
     /// </summary>
     public GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation)
     {
@@ -64,7 +57,7 @@ public class ObjectPoolManager : MonoBehaviour
         else
         {
             obj = Instantiate(prefab, position, rotation);
-            // 給予識別碼，以便回收時知道屬於哪個池
+            // 標記組件，以便 Recycle 時識別其所屬資料池
             var poolItem = obj.GetComponent<PoolItem>() ?? obj.AddComponent<PoolItem>();
             poolItem.prefabKey = key;
         }
@@ -73,7 +66,7 @@ public class ObjectPoolManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 將物件回收至池中
+    /// 將使用完畢的物件回收至其對應的資料池中。
     /// </summary>
     public void Recycle(GameObject obj)
     {
@@ -83,7 +76,6 @@ public class ObjectPoolManager : MonoBehaviour
         if (poolItem != null && pools.ContainsKey(poolItem.prefabKey))
         {
             obj.SetActive(false);
-            // 確保不會重複加入佇列
             if (!pools[poolItem.prefabKey].Contains(obj))
             {
                 pools[poolItem.prefabKey].Enqueue(obj);
@@ -91,29 +83,22 @@ public class ObjectPoolManager : MonoBehaviour
         }
         else
         {
-            // 如果不是從池中生成的，則直接銷毀
             Destroy(obj);
         }
     }
 
     /// <summary>
-    /// 靜態便捷方法：回收物件
+    /// 靜態便捷方法，用於快速回收物件。
     /// </summary>
     public static void Return(GameObject obj)
     {
-        if (Instance != null)
-        {
-            Instance.Recycle(obj);
-        }
-        else
-        {
-            Destroy(obj);
-        }
+        if (Instance != null) Instance.Recycle(obj);
+        else Destroy(obj);
     }
 }
 
 /// <summary>
-/// 用於標記物件池物品的輔助組件
+/// 標記組件，存放物件池物品的識別碼。
 /// </summary>
 public class PoolItem : MonoBehaviour
 {

@@ -163,7 +163,7 @@ MonoBehaviour:
   visualRoot: {fileID: 0}
   openOnce: 1
   disableColliderAfterOpen: 1
-  openSound: {fileID: 0}
+  openSound: {fileID: 8300000, guid: 5e3ce88121ca3574698e7c079882e7f5, type: 3}
   lockedSound: {fileID: 0}
   unlockSound: {fileID: 0}
   volume: 1

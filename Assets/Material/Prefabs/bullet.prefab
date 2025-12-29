@@ -179,13 +179,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d770b0d0c596f9c4bb7ff6d648dd0f4b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Bullet
-  Damage: 10
+  Damage: 15
   FlyingSpeed: 10
   IsPenetrate: 0
   PenetrateMaxTime: 0
   PenetrateReduceDamageMagnification: 0.001
   KnockbackDistance: 0.2
   KnockbackVelocity: 5
+  destroyOnTags:
+  - Wall
 --- !u!114 &-7920266806786759529
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -63,8 +63,9 @@ public class AmmoPickup : MonoBehaviour
     {
         if (pickupSound != null)
         {
+            float globalSFX = SoundManager.Instance != null ? SoundManager.Instance.GetVolume() : 1f;
             // 在拾取位置播放音效（因為物件即將被銷毀）
-            AudioSource.PlayClipAtPoint(pickupSound, transform.position, volume);
+            AudioSource.PlayClipAtPoint(pickupSound, transform.position, volume * globalSFX);
         }
     }
 }

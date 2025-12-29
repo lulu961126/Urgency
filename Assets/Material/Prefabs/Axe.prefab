@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f91d968e0c94cfe419fe51fef8bc258e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MeleeWeapon
-  Damage: 200
+  Damage: 10
   Cooldown: 0.5
   AttackRange: 0.55
   AttackAngle: 360

@@ -1,10 +1,8 @@
-using DG.Tweening;
-using DG.Tweening.Plugins.Options;
 using System;
-using UnityEditor.Build.Content;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class QTE : MonoBehaviour
 {
@@ -37,6 +35,7 @@ public class QTE : MonoBehaviour
         _actions = Inputs.Actions;
         _func ??= _ =>
         {
+            if (!_enabled) return;
             float degree = GetStandardDegree(_angle);
             if (degree <= EndAngle && degree >= StartAngle)
                 Success();
@@ -54,15 +53,23 @@ public class QTE : MonoBehaviour
         _material.SetFloat("_EndAngle", EndAngle);
         QTEStatus.QTEStart();
         QTEStatus.AllowCallQTE = false;
-        _canvasGroup.DOFade(1, 0.2f).OnComplete(() =>
+        QTEStatus.OnQTEForceFail += Failure; // 監聽強制失敗事件
+        
+        // 稍微重置角度並開始旋轉
+        _angle = 0; 
+        _enabled = false;
+
+        if (_actions == null)
         {
-            _actions.Player.Use.canceled += _func;
-            if (!_actions.Player.Use.IsPressed())
-            {
-                Failure();
-            }
-            _enabled = true;
-        });
+            Debug.LogError("[QTE] 找不到 InputActions 參考！請檢查 Inputs.Actions 是否正確初始化。");
+            return;
+        }
+
+        _canvasGroup.DOFade(1, 0.2f);
+        
+        // 改為使用左鍵 (Attack) 觸發
+        _actions.Player.Attack.performed += _func;
+        _enabled = true; 
     }
 
     private void Update()
@@ -78,9 +85,17 @@ public class QTE : MonoBehaviour
         }
     }
 
-    private void OnDestroy() => _actions.Player.Use.canceled -= _func;
+    private void OnDestroy()
+    {
+        if (_actions != null) _actions.Player.Attack.performed -= _func;
+        QTEStatus.OnQTEForceFail -= Failure;
+    }
 
-    private void OnDisable() => _actions.Player.Use.canceled -= _func;
+    private void OnDisable()
+    {
+        if (_actions != null) _actions.Player.Attack.performed -= _func;
+        QTEStatus.OnQTEForceFail -= Failure;
+    }
 
     private void Swap<T>(ref T a, ref T b) => (a, b) = (b, a);
 

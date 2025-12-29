@@ -3,92 +3,84 @@ using UnityEngine.Rendering.Universal;
 using DG.Tweening;
 
 /// <summary>
-/// 房間局部光控制器 - 配合方案二（局部光）
-/// 玩家進入區域時漸漸亮起，離開時漸漸熄滅
+/// 房間局部光控制器。
+/// 當玩家進入指定的 Trigger 區域時，房間燈光會平滑亮起；離開時則熄滅。
+/// 支援手動指定燈光物件或自動尋找子物件中的 Light 2D。
 /// </summary>
 [RequireComponent(typeof(Collider2D))]
 public class RoomLightController : MonoBehaviour
 {
     [Header("Light Settings")]
-    [Tooltip("此房間對應的 Light 2D 物件")]
+    [Tooltip("受控制的 Light 2D 物件。若留空則自動搜尋子物件。")]
     public Light2D roomLight;
     
-    [Tooltip("亮起時的最大強度")]
+    [Tooltip("門亮起時的目標亮度強度。")]
     public float targetIntensity = 1.0f;
     
-    [Tooltip("熄滅時的強度（通常為0）")]
+    [Tooltip("燈熄滅時的基礎亮度強度 (通常為 0)。")]
     public float baseIntensity = 0.0f;
 
     [Header("Transition Settings")]
-    [Tooltip("漸變時間（秒）")]
+    [Tooltip("亮度切換的平滑過渡時間 (秒)。")]
     public float fadeDuration = 0.5f;
 
-    [Tooltip("可以使用那些 Tag 觸發開燈")]
+    [Tooltip("觸發此效果的物件 Tag。")]
     public string playerTag = "Player";
 
     private Tween fadeTween;
 
-    void Start()
+    private void Start()
     {
-        if (roomLight == null)
-        {
-            // 嘗試從子物件找燈
-            roomLight = GetComponentInChildren<Light2D>();
-        }
+        // 自動補充參考
+        if (roomLight == null) roomLight = GetComponentInChildren<Light2D>();
 
         if (roomLight != null)
         {
-            // 初始狀態為完全黑暗
             roomLight.intensity = baseIntensity;
         }
-        else
+        else if (Informations.ShowDebug)
         {
-            Debug.LogWarning($"[RoomLightController] 物件 {gameObject.name} 未設定 roomLight", this);
+            Debug.LogWarning($"[RoomLight] 物件 {gameObject.name} 找不到 Light 2D 組件。", this);
         }
 
-        // 確保 Collider 是 Trigger
+        // 確保碰撞體設定正確
         var col = GetComponent<Collider2D>();
-        if (col) col.isTrigger = true;
+        if (col != null) col.isTrigger = true;
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag(playerTag))
-        {
-            FadeIntensity(targetIntensity);
-        }
+        if (other.CompareTag(playerTag)) FadeIntensity(targetIntensity);
     }
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (other.CompareTag(playerTag))
-        {
-            FadeIntensity(baseIntensity);
-        }
+        if (other.CompareTag(playerTag)) FadeIntensity(baseIntensity);
     }
 
+    /// <summary>
+    /// 執行亮度漸變動畫。
+    /// </summary>
     private void FadeIntensity(float target)
     {
         if (roomLight == null) return;
 
-        // 殺掉正在進行的漸變，避免閃爍或衝突
         fadeTween?.Kill();
-
-        // 使用 DOTween 進行平滑漸變
         fadeTween = DOTween.To(() => roomLight.intensity, x => roomLight.intensity = x, target, fadeDuration)
             .SetEase(Ease.InOutQuad)
-            .SetLink(roomLight.gameObject); // 當物件銷毀時自動停止 Tween
+            .SetLink(roomLight.gameObject);
     }
 
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {
-        // 在 Scene 視窗畫出偵測範圍，方便編輯
+        if (!Informations.ShowGizmos) return;
+
         var col = GetComponent<BoxCollider2D>();
         if (col != null)
         {
-            Gizmos.color = new Color(1f, 1f, 0f, 0.1f);
-            Gizmos.DrawFrustum(transform.position, 1, 0, 0, 1);
+            Gizmos.color = new Color(1f, 1f, 0f, 0.15f);
+            Gizmos.DrawCube((Vector2)transform.position + col.offset, col.size);
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireCube((Vector2)transform.position + col.offset, col.size);
         }

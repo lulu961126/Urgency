@@ -272,7 +272,6 @@ MonoBehaviour:
   Cooldown: 0.3
   IsAuto: 1
   BulletObject: {fileID: 183877745349647665, guid: 31608eb8772b12f4db70f04373950fea, type: 3}
-  DisappearDistance: 20
   PositionOffset: {x: 0, y: 0, z: 0}
   ShootingAudioClip: {fileID: 8300000, guid: b2e3730ca3d22ca4a8d68c0a9bb4ad59, type: 3}
   NoAmmoAudioClip: {fileID: 8300000, guid: 7b86c96a4c641aa46bb3c284339e3848, type: 3}

@@ -13,6 +13,11 @@ public class HealthPickup2D : MonoBehaviour
     [Tooltip("若使用直接加心值的方式，最大生命上限（依你的遊戲設定）")]
     public float maxHeart = 100f;
 
+    [Header("Pickup Condition")]
+    [Tooltip("玩家血量低於此百分比才能撿取 (0.7 = 70%)")]
+    [Range(0f, 1f)]
+    public float pickupThreshold = 0.7f;
+
     [Header("Pickup")]
     [Tooltip("限定玩家碰到才觸發的 Tag")]
     public string playerTag = "Player";
@@ -31,6 +36,16 @@ public class HealthPickup2D : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (!other.CompareTag(playerTag)) return;
+
+        // 檢查血量是否低於門檻
+        float currentHealthRatio = Informations.Heart / maxHeart;
+        if (currentHealthRatio > pickupThreshold)
+        {
+            // 血量太高，不允許撿取
+            if (Informations.ShowDebug) 
+                Debug.Log($"[HealthPickup] 血量 {currentHealthRatio:P0} 高於門檻 {pickupThreshold:P0}，無法撿取。");
+            return;
+        }
 
         ApplyHeal();
 

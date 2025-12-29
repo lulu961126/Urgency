@@ -1,37 +1,38 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// 2D ¶Ç°eªù¡G°»´ú¨ì¤¹³\ªº Tag ´N¶Ç°e¨ì¥Ø¼Ğ¦ì¸m
+/// <summary>
+/// ç°¡å–®çš„ 2D å‚³é€é»å·¥å…·ã€‚ç•¶å¸¶æœ‰æŒ‡å®š Tag çš„ç‰©ä»¶é€²å…¥ Trigger æ™‚ï¼Œå°‡å…¶ç§»å‹•è‡³ç›®æ¨™ä½ç½®ã€‚
+/// </summary>
 public class TeleportSimple2D : MonoBehaviour
 {
     [Header("Destination")]
-    [Tooltip("¶Ç°e¥Ø¼Ğ¦ì¸m")]
+    [Tooltip("å‚³é€çš„ç›®æ¨™ä½ç½®ã€‚")]
     public Transform target;
 
     [Header("Allowed Tags")]
-    [Tooltip("³o¨Ç Tag ¥i¥H³Q¶Ç°e")]
+    [Tooltip("å…è¨±è¢«å‚³é€çš„æ¨™ç±¤æ¸…å–®ã€‚")]
     public string[] allowedTags = new[] { "Player", "Refugee", "Zombie" };
 
     [Header("Safety")]
-    [Tooltip("¶Ç°e«á§N«o®É¶¡¡AÁ×§K¦^¼u")]
+    [Tooltip("å‚³é€å†·å»æ™‚é–“ (ç§’)ï¼Œé˜²æ­¢é€£çºŒå‚³é€é€ æˆçš„å¾ªç’°ã€‚")]
     public float cooldown = 0.25f;
-    [Tooltip("¨ì¹F«á·L²¾¶ZÂ÷¡AÁ×§K¥d¦b¹ï­± Trigger")]
+    [Tooltip("å‚³é€å¾Œçš„ä½ç§»åç§»ï¼Œé¿å…å‚³é€å¾Œä»å¡åœ¨ç›®æ¨™é»çš„è§¸ç™¼å™¨ä¸­ã€‚")]
     public float exitNudgeDistance = 0.2f;
 
     private static readonly Dictionary<Transform, float> cooldownUntil = new Dictionary<Transform, float>();
 
-    void Reset()
+    private void Reset()
     {
         var col = GetComponent<Collider2D>();
         if (!col) col = gameObject.AddComponent<BoxCollider2D>();
         col.isTrigger = true;
     }
 
-    void OnTriggerEnter2D(Collider2D other)
+    private void OnTriggerEnter2D(Collider2D other)
     {
         if (!target) return;
 
-        // ÀË¬d¬O§_¬°¤¹³\ªº Tag
         bool allowed = false;
         if (allowedTags != null)
         {
@@ -46,34 +47,29 @@ public class TeleportSimple2D : MonoBehaviour
         }
         if (!allowed) return;
 
-        // §N«oÀË¬d
         if (cooldownUntil.TryGetValue(other.transform, out float until) && Time.time < until)
             return;
 
         Teleport(other.transform);
     }
 
-    void Teleport(Transform entity)
+    private void Teleport(Transform entity)
     {
-        // Âk¹s³t«×
         var rb = entity.GetComponent<Rigidbody2D>();
         if (rb) rb.linearVelocity = Vector2.zero;
 
-        // ­pºâ·L²¾¤è¦V
         Vector3 dir = (target.position - transform.position).normalized;
         if (dir == Vector3.zero) dir = Vector3.up;
 
-        // ¶Ç°e¨ì¥Ø¼Ğ¦ì¸m¨Ã·L²¾
         entity.position = target.position + dir * exitNudgeDistance;
-
-        // ³]¸m§N«o
         cooldownUntil[entity] = Time.time + cooldown;
     }
 
 #if UNITY_EDITOR
-    void OnDrawGizmos()
+    private void OnDrawGizmos()
     {
-        if (!target) return;
+        if (!target || !Informations.ShowGizmos) return;
+
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(transform.position, target.position);
         Gizmos.DrawSphere(target.position, 0.08f);

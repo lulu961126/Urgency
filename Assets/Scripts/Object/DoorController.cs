@@ -4,9 +4,8 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// 門控制器 - 放在 DoorUnit 上
-/// 控制門的開關動畫，支援根據玩家位置決定開門方向
-/// 玩家拿著正確的鑰匙靠近即可自動解鎖
+/// 門控制器。處理平滑的開關動畫，並根據玩家位置決定開門方向（正推或反推）。
+/// 支援連動門（雙開門）與鑰匙解鎖系統。
 /// </summary>
 public class DoorController : MonoBehaviour
 {
@@ -14,44 +13,44 @@ public class DoorController : MonoBehaviour
     [Tooltip("門是否上鎖")]
     public bool isLocked = false;
     
-    [Tooltip("需要的鑰匙 ID（如果上鎖）")]
+    [Tooltip("需要的鑰匙 ID (需對應 KeyItem 的 keyId)")]
     public string requiredKeyId = "default";
     
-    [Tooltip("開鎖後是否消耗鑰匙")]
+    [Tooltip("開鎖後是否自動消耗鑰匙")]
     public bool consumeKeyOnUnlock = true;
 
     [Header("References")]
-    [Tooltip("門板的 Transform（會旋轉的部分）")]
+    [Tooltip("旋轉門板的 Transform")]
     public Transform doorTransform;
     
-    [Tooltip("門的碰撞體")]
+    [Tooltip("門板的實體碰撞體 (開門後會被禁用)")]
     public Collider2D doorCollider;
 
     [Header("Rotation Settings")]
-    [Tooltip("關門時的角度")]
+    [Tooltip("關閉時的局部歐拉角 Z 值")]
     public float closeAngle = 0f;
     
-    [Tooltip("向正方向開門的角度（玩家在門的正面時）")]
+    [Tooltip("正向開啟的角度 (玩家在門前方時)")]
     public float openAnglePositive = -90f;
     
-    [Tooltip("向負方向開門的角度（玩家在門的背面時）")]
+    [Tooltip("負向開啟的角度 (玩家在門後方時)")]
     public float openAngleNegative = 90f;
     
-    [Tooltip("旋轉速度")]
+    [Tooltip("旋轉動畫速度")]
     public float rotateSpeed = 180f;
 
-    [Header("Player Detection")]
-    [Tooltip("用於判斷玩家位置的參考點（門的中心）")]
+    [Header("Detection Points")]
+    [Tooltip("判斷距離的中心點參考")]
     public Transform doorCenter;
     
-    [Tooltip("門面向的方向（用於判斷玩家在哪一側）\n0 = 右, 90 = 上, 180 = 左, -90 = 下")]
+    [Tooltip("門的基準 forward 角度。會自動疊加物件自身的 Z 軸旋轉。")]
     public float doorForwardAngle = 0f;
 
     [Header("Options")]
-    [Tooltip("旋轉時是否禁用碰撞體")]
+    [Tooltip("旋轉過程中是否禁穿透門板")]
     public bool disableColliderWhileRotating = true;
 
-    [Header("Audio (Optional)")]
+    [Header("Audio")]
     public AudioClip openSound;
     public AudioClip closeSound;
     public AudioClip lockedSound;
@@ -59,42 +58,63 @@ public class DoorController : MonoBehaviour
     [Range(0f, 1f)] public float volume = 1f;
 
     [Header("Linked Doors")]
-    [Tooltip("連結的門（例如雙開門），其中一扇門開啟/關閉/解鎖時，連結的門也會同步動作")]
+    [Tooltip("連動的門元件清單。其中一扇開關或解鎖，其餘會同步。")]
     public DoorController[] linkedDoors;
 
-    // 狀態
+    [Header("QTE Settings")]
+    [Tooltip("開鎖用的 QTE Prefab")]
+    public GameObject qtePrefab;
+    [Tooltip("QTE 的判定寬度 (角度)")]
+    public float qteWidth = 40f;
+
+    // 內部狀態
     private bool isOpen = false;
     private bool isRotating = false;
     private float targetAngle;
     private bool playerInRange = false;
     private Transform currentPlayer;
     private bool hasPlayedLockedSound = false;
-    private bool isSyncing = false; // 防止同步動作時產生無限遞迴
+    private bool isSyncing = false;
+    private bool isWaitingQTE = false;
+    private bool qteFailedAndNeedsReentry = false;
+    private Transform canvas;
 
     private enum PendingAction { None, Open, Close }
     private PendingAction pending = PendingAction.None;
 
-    void Start()
+    private void Start()
     {
         AutoAssignReferences();
+        FindCanvas();
 
-        if (!doorTransform)
+        if (doorTransform == null)
         {
-            Debug.LogError("[DoorController] doorTransform 未設定", this);
+            Debug.LogError($"[Door] {gameObject.name} 缺少門板 Reference!", this);
             enabled = false;
             return;
         }
 
-        // 初始化為關閉狀態
+        // 初始化狀態
         isOpen = false;
         isRotating = false;
         targetAngle = closeAngle;
         SetRotationInstant(closeAngle);
-        if (doorCollider) doorCollider.enabled = true;
+        if (doorCollider != null) doorCollider.enabled = true;
+    }
+
+    private void FindCanvas()
+    {
+        if (canvas == null)
+        {
+            // 使用 FindObjectOfType 以確保與舊版 Unity 相容
+            Canvas c = Object.FindObjectOfType<Canvas>();
+            if (c != null) canvas = c.transform;
+            else canvas = GameObject.FindWithTag("Canvas")?.transform;
+        }
     }
 
     /// <summary>
-    /// 玩家進入觸發區域時呼叫
+    /// 被觸發區域調用。玩家進入感觸區。
     /// </summary>
     public void OnPlayerEnter(Transform player = null)
     {
@@ -105,26 +125,17 @@ public class DoorController : MonoBehaviour
         currentPlayer = player;
         hasPlayedLockedSound = false;
 
-        if (isRotating) 
-        { 
-            pending = PendingAction.Open; 
-        }
-        else if (!isOpen) 
-        {
-            TryOpen();
-        }
+        if (isRotating) pending = PendingAction.Open; 
+        else if (!isOpen) TryOpen();
 
-        // 同步通知連結的門
-        foreach (var linked in linkedDoors)
-        {
-            if (linked != null) linked.OnPlayerEnter(player);
-        }
+        // 連動同步
+        foreach (var linked in linkedDoors) if (linked != null) linked.OnPlayerEnter(player);
 
         isSyncing = false;
     }
 
     /// <summary>
-    /// 玩家離開觸發區域時呼叫
+    /// 玩家離開感觸區。
     /// </summary>
     public void OnPlayerExit()
     {
@@ -134,36 +145,46 @@ public class DoorController : MonoBehaviour
         playerInRange = false;
         currentPlayer = null;
         hasPlayedLockedSound = false;
+        isWaitingQTE = false; 
+        qteFailedAndNeedsReentry = false; // 離開後清除失敗標記，允許下次進入時重試
 
-        if (isRotating) 
-        { 
-            pending = PendingAction.Close; 
-        }
-        else if (isOpen) 
-        {
-            StartClose();
-        }
+        if (isRotating) pending = PendingAction.Close; 
+        else if (isOpen) StartClose();
 
-        // 同步通知連結的門
-        foreach (var linked in linkedDoors)
-        {
-            if (linked != null) linked.OnPlayerExit();
-        }
+        foreach (var linked in linkedDoors) if (linked != null) linked.OnPlayerExit();
 
         isSyncing = false;
     }
 
-    void Update()
+    private void Update()
     {
-        // 如果玩家在範圍內且門是鎖著的，持續檢查玩家是否拿到鑰匙
-        if (playerInRange && isLocked && !isOpen && !isRotating)
+        // 處理 QTE 回傳結果
+        if (isWaitingQTE && QTEStatus.IsFinish)
+        {
+            isWaitingQTE = false;
+            if (QTEStatus.IsSuccess)
+            {
+                // QTE 成功，真正執行開鎖與開門
+                CompleteUnlock();
+            }
+            else
+            {
+                // QTE 失敗，標記玩家需要離開再進來
+                qteFailedAndNeedsReentry = true;
+                if (Informations.ShowDebug) Debug.Log("[Door] QTE 失敗，需重新進入區域以重試。");
+            }
+        }
+
+        // 進入範圍但未解鎖時，持續監測玩家手中是否有對應鑰匙
+        // 增加 !isOpen 判定，確保只有在門關閉且上鎖時才嘗試 QTE
+        if (playerInRange && isLocked && !isOpen && !isRotating && !isWaitingQTE && !qteFailedAndNeedsReentry)
         {
             TryUnlockWithKey();
         }
 
-        // 處理門的旋轉動畫
-        if (!isRotating || !doorTransform) return;
+        if (!isRotating || doorTransform == null) return;
 
+        // 處理插值旋轉
         float current = doorTransform.localEulerAngles.z;
         float next = Mathf.MoveTowardsAngle(current, targetAngle, rotateSpeed * Time.deltaTime);
         SetRotationInstant(next);
@@ -176,100 +197,96 @@ public class DoorController : MonoBehaviour
     }
 
     /// <summary>
-    /// 嘗試用鑰匙解鎖
+    /// 嘗試開鎖：現在會觸發 QTE 而不是直接開。
     /// </summary>
     private void TryUnlockWithKey()
     {
         var key = KeyItem.GetHeldDoorKey(requiredKeyId);
         if (key != null)
         {
-            // 找到正確的鑰匙，解鎖！
-            isLocked = false;
-            
-            // 同步解鎖連結的門
-            foreach (var linked in linkedDoors)
-            {
-                if (linked != null) linked.isLocked = false;
-            }
-
-            PlaySound(unlockSound);
-            Debug.Log($"[DoorController] 門已解鎖 (Key: {requiredKeyId})");
-
-            // 消耗鑰匙
-            if (consumeKeyOnUnlock)
-            {
-                key.Consume();
-            }
-
-            // 開門
-            StartOpen();
-            
-            // 確保連結的門也同步開啟（從 Update 檢測到鑰匙時）
-            if (!isSyncing)
-            {
-                isSyncing = true;
-                foreach (var linked in linkedDoors)
-                {
-                    if (linked != null) linked.OnPlayerEnter(currentPlayer);
-                }
-                isSyncing = false;
-            }
+            // 觸發 QTE
+            StartQTE();
         }
         else if (!hasPlayedLockedSound)
         {
-            // 沒有鑰匙，播放一次鎖定音效
             PlaySound(lockedSound);
             hasPlayedLockedSound = true;
         }
     }
 
-    /// <summary>
-    /// 嘗試開門（會檢查是否上鎖）
-    /// </summary>
+    private void StartQTE()
+    {
+        if (isWaitingQTE || !QTEStatus.AllowCallQTE) return;
+        
+        FindCanvas(); 
+        if (qtePrefab == null || canvas == null)
+        {
+            // 修復 bug：找不到 QTE 時，門不應該自動開啟，而是應該維持上鎖並開發除錯訊息
+            Debug.LogError($"[Door] {gameObject.name} 無法觸發 QTE (缺少 Prefab 或 Canvas)。門將維持上鎖狀態。");
+            return;
+        }
+
+        isWaitingQTE = true;
+        GameObject obj = Instantiate(qtePrefab, canvas);
+        QTE qte = obj.GetComponent<QTE>();
+        
+        // 隨機角度，確保不會跨越 360° 邊界
+        // 限制起始角度範圍，使得 startAngle + qteWidth 不會超過 360
+        float maxStartAngle = 360f - qteWidth;
+        float startAngle = Random.Range(30f, maxStartAngle);
+        qte.StartAngle = startAngle;
+        qte.EndAngle = startAngle + qteWidth;
+        obj.SetActive(true);
+    }
+
+    private void CompleteUnlock()
+    {
+        var key = KeyItem.GetHeldDoorKey(requiredKeyId);
+        if (key != null)
+        {
+            isLocked = false;
+            foreach (var linked in linkedDoors) if (linked != null) linked.isLocked = false;
+
+            PlaySound(unlockSound);
+            if (Informations.ShowDebug) Debug.Log($"[Door] QTE 成功！門已解鎖: {requiredKeyId}");
+
+            if (consumeKeyOnUnlock) key.Consume();
+            StartOpen();
+
+            // 連動同步開啟
+            if (!isSyncing)
+            {
+                isSyncing = true;
+                foreach (var linked in linkedDoors) if (linked != null) linked.OnPlayerEnter(currentPlayer);
+                isSyncing = false;
+            }
+        }
+    }
+
     public bool TryOpen()
     {
-        // 檢查是否上鎖
         if (isLocked)
         {
-            // 嘗試用鑰匙解鎖
             var key = KeyItem.GetHeldDoorKey(requiredKeyId);
             if (key != null)
             {
-                isLocked = false;
-                
-                // 同步解鎖連結的門
-                foreach (var linked in linkedDoors)
-                {
-                    if (linked != null) linked.isLocked = false;
-                }
-
-                PlaySound(unlockSound);
-                Debug.Log($"[DoorController] 門已解鎖 (Key: {requiredKeyId})");
-
-                if (consumeKeyOnUnlock)
-                {
-                    key.Consume();
-                }
+                if (!qteFailedAndNeedsReentry) StartQTE();
+                return true;
             }
-            else
+
+            if (!hasPlayedLockedSound)
             {
-                if (!hasPlayedLockedSound)
-                {
-                    PlaySound(lockedSound);
-                    hasPlayedLockedSound = true;
-                }
-                Debug.Log($"[DoorController] 門已上鎖，需要鑰匙: {requiredKeyId}");
-                return false;
+                PlaySound(lockedSound);
+                hasPlayedLockedSound = true;
             }
+            return false;
         }
 
+        // 門只有在未上鎖時才能進入 StartOpen()
         StartOpen();
         return true;
     }
 
-    /// <summary>
-    /// 強制開門（忽略鎖定狀態）
-    /// </summary>
     public void ForceOpen()
     {
         if (isSyncing) return;
@@ -277,107 +294,74 @@ public class DoorController : MonoBehaviour
 
         isLocked = false;
         StartOpen();
-
-        foreach (var linked in linkedDoors)
-        {
-            if (linked != null) linked.ForceOpen();
-        }
+        foreach (var linked in linkedDoors) if (linked != null) linked.ForceOpen();
 
         isSyncing = false;
     }
 
-    /// <summary>
-    /// 強制關門
-    /// </summary>
     public void ForceClose()
     {
         if (isSyncing) return;
         isSyncing = true;
 
         StartClose();
-
-        foreach (var linked in linkedDoors)
-        {
-            if (linked != null) linked.ForceClose();
-        }
+        foreach (var linked in linkedDoors) if (linked != null) linked.ForceClose();
 
         isSyncing = false;
     }
 
     private void StartOpen()
     {
+        if (isOpen) return;
         isOpen = true;
         
-        // 根據玩家位置決定開門方向
         targetAngle = GetOpenAngleBasedOnPlayerPosition();
-        
         isRotating = true;
-        if (disableColliderWhileRotating && doorCollider) 
-            doorCollider.enabled = false;
         
+        if (disableColliderWhileRotating && doorCollider) doorCollider.enabled = false;
         PlaySound(openSound);
     }
 
     private void StartClose()
     {
+        if (!isOpen) return;
         isOpen = false;
+        
         targetAngle = closeAngle;
         isRotating = true;
-        if (disableColliderWhileRotating && doorCollider) 
-            doorCollider.enabled = false;
         
+        if (disableColliderWhileRotating && doorCollider) doorCollider.enabled = false;
         PlaySound(closeSound);
     }
 
     /// <summary>
-    /// 根據玩家位置決定開門角度
+    /// 基於玩家與門的前向向量做點積，決定開門角度。
     /// </summary>
     private float GetOpenAngleBasedOnPlayerPosition()
     {
         if (currentPlayer == null)
-        {
-            // 沒有玩家參考，嘗試找玩家
-            var player = GameObject.FindWithTag("Player");
-            if (player != null)
-                currentPlayer = player.transform;
-            else
-                return openAnglePositive; // 預設方向
-        }
+            currentPlayer = Informations.Player?.transform;
 
-        // 計算門的參考點
+        if (currentPlayer == null) return openAnglePositive;
+
         Vector2 center = doorCenter != null ? doorCenter.position : transform.position;
-        
-        // 計算玩家相對於門的方向
         Vector2 toPlayer = (Vector2)currentPlayer.position - center;
         
-        // 計算門面向的方向向量 (整合門自身的旋轉角度)
+        // 考慮世界空間的座標系的 Forward
         float worldForwardAngle = doorForwardAngle + transform.eulerAngles.z;
         float forwardRad = worldForwardAngle * Mathf.Deg2Rad;
         Vector2 doorForward = new Vector2(Mathf.Cos(forwardRad), Mathf.Sin(forwardRad));
         
-        // 計算玩家是在門的正面還是背面
         float dot = Vector2.Dot(toPlayer.normalized, doorForward);
-        
-        // dot > 0 表示玩家在門的正面，dot < 0 表示在背面
-        if (dot >= 0)
-        {
-            // 玩家在正面，回傳正向角度
-            return openAnglePositive;
-        }
-        else
-        {
-            // 玩家在背面，回傳負向角度
-            return openAngleNegative;
-        }
+        return (dot >= 0) ? openAnglePositive : openAngleNegative;
     }
 
     private void EndRotation()
     {
         isRotating = false;
-        if (doorCollider) 
-            doorCollider.enabled = !isOpen;
+        if (doorCollider) doorCollider.enabled = !isOpen;
 
-        // 處理待處理動作
+        // 處理中間切換的操作
         if (pending == PendingAction.Open && playerInRange && !isOpen)
         {
             pending = PendingAction.None;
@@ -402,25 +386,16 @@ public class DoorController : MonoBehaviour
     {
         if (clip != null)
         {
-            AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+            float globalSFX = SoundManager.Instance != null ? SoundManager.Instance.GetVolume() : 1f;
+            AudioSource.PlayClipAtPoint(clip, transform.position, volume * globalSFX);
         }
     }
 
     private void AutoAssignReferences()
     {
-        if (!doorTransform)
-        {
-            var guess = transform.Find("DoorPanel");
-            if (guess) doorTransform = guess;
-        }
-        if (!doorCollider && doorTransform)
-        {
-            doorCollider = doorTransform.GetComponent<Collider2D>();
-        }
-        if (!doorCenter)
-        {
-            doorCenter = transform;
-        }
+        if (!doorTransform) doorTransform = transform.Find("DoorPanel");
+        if (!doorCollider && doorTransform) doorCollider = doorTransform.GetComponent<Collider2D>();
+        if (!doorCenter) doorCenter = transform;
     }
 
 #if UNITY_EDITOR
@@ -428,15 +403,14 @@ public class DoorController : MonoBehaviour
     private void EditorAutoAssign()
     {
         AutoAssignReferences();
-        if (doorTransform) Debug.Log("[DoorController] doorTransform -> " + doorTransform.name, this);
-        if (doorCollider) Debug.Log("[DoorController] doorCollider -> " + doorCollider.GetType().Name, this);
-        if (doorCenter) Debug.Log("[DoorController] doorCenter -> " + doorCenter.name, this);
+        if (doorTransform && Informations.ShowDebug) Debug.Log($"[Door] 自動匹配 doorTransform: {doorTransform.name}");
         EditorUtility.SetDirty(this);
     }
 
-    void OnDrawGizmosSelected()
+    private void OnDrawGizmosSelected()
     {
-        // 顯示門的方向
+        if (!Informations.ShowGizmos) return;
+
         Vector3 center = doorCenter != null ? doorCenter.position : transform.position;
         float worldForwardAngle = doorForwardAngle + transform.eulerAngles.z;
         float forwardRad = worldForwardAngle * Mathf.Deg2Rad;
@@ -444,11 +418,10 @@ public class DoorController : MonoBehaviour
         
         Gizmos.color = Color.blue;
         Gizmos.DrawRay(center, forward * 1f);
-        Gizmos.DrawSphere(center + forward * 1f, 0.1f);
+        Gizmos.DrawSphere(center + forward * 1f, 0.05f);
         
-        // 顯示鎖定狀態
         Gizmos.color = isLocked ? Color.red : Color.green;
-        Gizmos.DrawWireCube(center, Vector3.one * 0.3f);
+        Gizmos.DrawWireCube(center, Vector3.one * 0.2f);
     }
 #endif
 }

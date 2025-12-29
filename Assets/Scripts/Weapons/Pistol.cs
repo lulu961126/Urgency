@@ -5,11 +5,13 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// 武器腳本 - 改進了彈藥選擇與 UI 邏輯
+/// 基礎武器控制腳本。支援半自動與全自動射擊，自動處理不同材質的彈藥消耗與 HUD UI 更新。
 /// </summary>
 public class Pistol : MonoBehaviour
 {
-    // 定義彈藥類型
+    /// <summary>
+    /// 彈藥類型列舉
+    /// </summary>
     public enum AmmoType { Pistol, Rifle, Arrow }
 
     [Header("Weapon Settings")]
@@ -17,7 +19,6 @@ public class Pistol : MonoBehaviour
     [SerializeField] private float Cooldown = 0.2f;
     [SerializeField] private bool IsAuto = false;
     [SerializeField] private GameObject BulletObject;
-    [SerializeField] private float DisappearDistance = 20f;
     [SerializeField] private Vector3 PositionOffset;
 
     [Header("Audio Settings")]
@@ -27,16 +28,16 @@ public class Pistol : MonoBehaviour
     [Range(0f, 1f)] [SerializeField] private float noAmmoVolume = 1f;
 
     [Header("UI References")]
-    [Tooltip("如果留空，會自動根據 Tag 'AmmoLeft' 找尋")]
+    [Tooltip("對應顯示彈藥量的 UI 物件 (必須包含 TextMeshProUGUI)。若留空則使用 Tag 'AmmoLeft' 搜尋。")]
     [SerializeField] private GameObject ammoTextMeshObject;
-    [Tooltip("對應此武器的彈藥圖案物件（例如手槍圖示、步槍圖示）")]
+    [Tooltip("對應此武器的彈藥圖案物件 (Ammo Icon)。若留空則使用 Tag 'AmmoPattern' 搜尋。")]
     [SerializeField] private GameObject ammoPatternRef;
 
     private InputSystem_Actions actions;
     private readonly List<GameObject> bullets = new();
     private float elapsed;
     private bool isHolding = false;
-    private bool autoNoAmmoLock = false; // 當沒子彈時鎖定自動射擊
+    private bool autoNoAmmoLock = false; // 當彈藥耗盡時鎖定自動射擊
     
     private TextMeshProUGUI ammoTextMesh;
     private GameObject ammoPattern;
@@ -44,7 +45,9 @@ public class Pistol : MonoBehaviour
     private Action<InputAction.CallbackContext> Trigger;
     private Action<InputAction.CallbackContext> TriggerLeave;
 
-    // 取得當前類型的剩餘彈藥
+    /// <summary>
+    /// 取得或設定當前武器類型的全域彈藥數。
+    /// </summary>
     private int CurrentAmmoCount
     {
         get
@@ -68,6 +71,9 @@ public class Pistol : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 檢查此武器是否位於玩家的武器掛載點下。
+    /// </summary>
     private bool IsUnderPlayerWeapons()
     {
         Transform current = transform;
@@ -86,24 +92,28 @@ public class Pistol : MonoBehaviour
 
         elapsed = Mathf.Min(elapsed + Time.deltaTime, Cooldown);
 
-        // 更新 UI 數值
+        // 每影格更新 UI 數值
         UpdateAmmoUI();
 
-        // 自動射擊邏輯
+        // 處理自動射擊
         if (isHolding && elapsed >= Cooldown)
         {
             Shoot();
         }
     }
 
+    /// <summary>
+    /// 執行射擊邏輯。
+    /// </summary>
     private void Shoot()
     {
         if (CurrentAmmoCount <= 0)
         {
-            // 沒子彈時播放空彈音效
-            if (NoAmmoAudioLockCheck())
+            // 播放空彈音效
+            if (NoAmmoAudioClip && elapsed >= Cooldown)
             {
-                AudioSource.PlayClipAtPoint(NoAmmoAudioClip, transform.position, noAmmoVolume);
+                float globalSFX = SoundManager.Instance != null ? SoundManager.Instance.GetVolume() : 1f;
+                AudioSource.PlayClipAtPoint(NoAmmoAudioClip, transform.position, noAmmoVolume * globalSFX);
                 elapsed = 0f;
             }
 
@@ -114,11 +124,11 @@ public class Pistol : MonoBehaviour
 
         if (!BulletObject) return;
         
-        // 抓取玩家身上所有的 Collider（包含子物件）
+        // 快取玩家碰撞體，確保子彈不會射到自己
         if (playerColliders == null || playerColliders.Length == 0)
             playerColliders = GetComponentsInParent<Collider2D>();
 
-        // 使用物件池生成子彈
+        // 從物件池生成子彈
         GameObject bullet = ObjectPoolManager.Instance.Spawn(BulletObject, transform.position + PositionOffset, transform.rotation);
         
         if (bullet != null && playerColliders != null)
@@ -126,7 +136,6 @@ public class Pistol : MonoBehaviour
             Collider2D bulletCollider = bullet.GetComponent<Collider2D>();
             if (bulletCollider != null)
             {
-                // 遍歷所有玩家碰撞體，通通忽略
                 foreach (var pCol in playerColliders)
                 {
                     if (pCol != null) Physics2D.IgnoreCollision(pCol, bulletCollider);
@@ -134,24 +143,23 @@ public class Pistol : MonoBehaviour
             }
         }
 
-        // 消耗彈藥
+        // 彈藥扣除
         CurrentAmmoCount = Mathf.Max(0, CurrentAmmoCount - 1);
         elapsed = 0f;
         autoNoAmmoLock = false;
 
-        // 刷新 UI
         UpdateAmmoUI();
 
-        // 播放射擊音效
         if (ShootingAudioClip)
-            AudioSource.PlayClipAtPoint(ShootingAudioClip, transform.position, shootingVolume);
+        {
+            float globalSFX = SoundManager.Instance != null ? SoundManager.Instance.GetVolume() : 1f;
+            AudioSource.PlayClipAtPoint(ShootingAudioClip, transform.position, shootingVolume * globalSFX);
+        }
     }
 
-    private bool NoAmmoAudioLockCheck()
-    {
-        return NoAmmoAudioClip && elapsed >= Cooldown;
-    }
-
+    /// <summary>
+    /// 更新 HUD 上的彈藥文字與顏色。
+    /// </summary>
     private void UpdateAmmoUI()
     {
         if (ammoTextMesh)
@@ -159,7 +167,7 @@ public class Pistol : MonoBehaviour
             int count = CurrentAmmoCount;
             ammoTextMesh.text = count.ToString();
             
-            // 沒子彈時變紅色
+            // 彈藥耗盡警示（紅色）
             ammoTextMesh.color = count <= 0 
                 ? new Color(1f, 0.3f, 0.3f) 
                 : new Color(0.9f, 0.8f, 0.4f);
@@ -173,29 +181,23 @@ public class Pistol : MonoBehaviour
         actions = Inputs.Actions;
         actions.Player.Enable();
 
-        // 獲取 UI 參考 (加強版自動搜尋)
+        // 尋找 UI 元件 (支援手動指定或 Tag 搜尋)
         if (ammoTextMesh == null)
         {
             GameObject textGo = ammoTextMeshObject;
-            // 如果沒拖入，就用 Tag 找
             if (textGo == null) textGo = GameObject.FindWithTag("AmmoLeft");
 
             if (textGo != null)
                 ammoTextMesh = textGo.GetComponent<TextMeshProUGUI>();
-            else
-                Debug.LogWarning($"[Pistol] 在場景中找不到 Tag 為 'AmmoLeft' 的文字物件，請檢查 UI 設定。");
         }
         
         if (ammoPattern == null)
         {
             ammoPattern = ammoPatternRef;
-            if (ammoPattern == null)
-            {
-                ammoPattern = GameObject.FindWithTag("AmmoPattern");
-            }
+            if (ammoPattern == null) ammoPattern = GameObject.FindWithTag("AmmoPattern");
         }
 
-        // 綁定輸入
+        // 綁定輸入事件
         Trigger ??= _ => {
             if (elapsed >= Cooldown) Shoot();
             if (IsAuto && !autoNoAmmoLock) isHolding = true;
@@ -205,7 +207,7 @@ public class Pistol : MonoBehaviour
         actions.Player.Attack.started += Trigger;
         actions.Player.Attack.canceled += TriggerLeave;
 
-        // 顯示專屬的彈藥圖案
+        // 啟用對應武器圖示
         if (ammoPattern) ammoPattern.SetActive(true);
         UpdateAmmoUI();
     }
@@ -218,7 +220,7 @@ public class Pistol : MonoBehaviour
             if (TriggerLeave != null) actions.Player.Attack.canceled -= TriggerLeave;
         }
 
-        // 隱藏彈藥圖案與清空文字（避免換到空手時殘留）
+        // 卸載武器時隱藏圖示
         if (ammoPattern) ammoPattern.SetActive(false);
         if (ammoTextMesh) ammoTextMesh.text = "";
         

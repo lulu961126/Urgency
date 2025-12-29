@@ -2,12 +2,20 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 全域遊戲資訊管理類，處理由玩家狀態、彈藥、背包與物品管理等核心數據。
+/// </summary>
 public static class Informations
 {
-    public static int Ammo_Pistol = 100;
-    public static int Ammo_Rifles = 100;
-    public static int Arrows = 100;
+    // --- 彈藥資料 ---
+    public static int Ammo_Pistol = 20;
+    public static int Ammo_Rifles = 20;
+    public static int Arrows = 20;
 
+    // --- 玩家狀態與屬性 ---
+    /// <summary>
+    /// 快取玩家物件參考。
+    /// </summary>
     public static GameObject Player { get => player ??= GameObject.FindWithTag("Player"); }
     public static float BatteryPower = 100;
     public static float Kerosene = 100;
@@ -19,6 +27,9 @@ public static class Informations
     private static Transform weaponsParent;
     private static Transform propsParent;
 
+    /// <summary>
+    /// 玩家武器掛載點。
+    /// </summary>
     public static Transform WeaponsParent
     {
         get
@@ -37,6 +48,9 @@ public static class Informations
         }
     }
 
+    /// <summary>
+    /// 玩家道具掛載點。
+    /// </summary>
     public static Transform PropsParent
     {
         get
@@ -55,20 +69,29 @@ public static class Informations
         }
     }
 
+    // --- 背包系統 ---
     public static List<Container> Containers = new();
 
+    /// <summary>
+    /// 是否顯示詳細的除錯訊息。
+    /// </summary>
+    public static bool ShowDebug = false;
+
+    /// <summary>
+    /// 是否顯示場景中的輔助線 (Gizmos)。
+    /// </summary>
+    public static bool ShowGizmos = true;
+
+    /// <summary>
+    /// 當前選中的背包槽位。切換時會自動啟動/停用物件，並處理 UI 隱藏邏輯。
+    /// </summary>
     public static int SelectedContainer
     {
         get => selectedContainer;
         set
         {
-            Debug.Log($"[Informations] === SelectedContainer setter 開始 ===");
-            Debug.Log($"[Informations] 輸入值: {value}");
-            Debug.Log($"[Informations] 當前值: {selectedContainer}");
-
             if (Containers == null || Containers.Count == 0)
             {
-                Debug.LogWarning("[Informations] Containers 為空或未初始化");
                 selectedContainer = 0;
                 return;
             }
@@ -76,48 +99,36 @@ public static class Informations
             int clamped = Mathf.Clamp(value, 0, Containers.Count - 1);
             int old = selectedContainer;
 
-            // ✅ 如果是相同槽位，直接返回
+            // 如果選中相同槽位，僅確保物品為啟動狀態
             if (old == clamped)
             {
-                Debug.Log($"[Informations] 相同槽位 ({clamped})，確保物品已啟用");
-
-                // 確保當前槽位的物品是啟用的
                 if (clamped >= 0 && clamped < Containers.Count && Containers[clamped].ItemObject != null)
                 {
                     if (!Containers[clamped].ItemObject.activeSelf)
                     {
-                        Debug.Log($"[Informations] 物品未啟用，現在啟用:  {Containers[clamped].ItemObject.name}");
+                        if (ShowDebug) Debug.Log($"[Informations] 重新啟用物品: {Containers[clamped].ItemObject.name}");
                         Containers[clamped].ItemObject.SetActive(true);
-                    }
-                    else
-                    {
-                        Debug.Log($"[Informations] 物品已經是啟用狀態");
                     }
                 }
                 return;
             }
 
             selectedContainer = clamped;
-            Debug.Log($"[Informations] 舊槽位: {old}, 新槽位: {selectedContainer}");
 
             // 停用舊槽位的物品
             if (old >= 0 && old < Containers.Count && Containers[old].ItemObject != null)
             {
-                Debug.Log($"[Informations] 停用舊槽位 {old} 的物品:  {Containers[old].ItemObject.name}");
                 Containers[old].ItemObject.SetActive(false);
             }
 
             // 啟用新槽位的物品
             if (selectedContainer >= 0 && selectedContainer < Containers.Count && Containers[selectedContainer].ItemObject != null)
             {
-                Debug.Log($"[Informations] 啟用新槽位 {selectedContainer} 的物品: {Containers[selectedContainer].ItemObject.name}");
                 Containers[selectedContainer].ItemObject.SetActive(true);
-                Debug.Log($"[Informations] 啟用後狀態: {Containers[selectedContainer].ItemObject.activeSelf}");
             }
             else
             {
-                Debug.LogWarning($"[Informations] 槽位 {selectedContainer} 沒有物品");
-                // 🔹 如果沒拿東西，隱藏彈藥 UI，避免顯示預設的弓箭圖案
+                // 如果是空格子，處理彈藥 UI 的自動隱藏
                 var ammoUI = GameObject.FindWithTag("AmmoPattern");
                 if (ammoUI) ammoUI.SetActive(false);
                 var ammoText = GameObject.FindWithTag("AmmoLeft");
@@ -128,12 +139,15 @@ public static class Informations
                 }
             }
 
-            Debug.Log($"[Informations] === SelectedContainer setter 結束 ===");
+            if (ShowDebug) Debug.Log($"[Informations] 切換槽位 {old} -> {selectedContainer}");
         }
     }
 
     private static int selectedContainer;
 
+    /// <summary>
+    /// 清除所有背包內的物品（並銷毀場景物件）。
+    /// </summary>
     public static void ClearAllContainerItems()
     {
         if (Containers == null) return;
@@ -158,6 +172,9 @@ public static class Informations
         propsParent = null;
     }
 
+    /// <summary>
+    /// 檢查背包是否已滿。
+    /// </summary>
     public static bool IsInventoryFull()
     {
         if (Containers == null || Containers.Count == 0) return true;
@@ -169,6 +186,9 @@ public static class Informations
         return true;
     }
 
+    /// <summary>
+    /// 拾取物品，將其加入第一個空位。
+    /// </summary>
     public static int PickupItem(GameObject worldItemPrefab, Sprite previewImage)
     {
         if (IsInventoryFull())
@@ -205,6 +225,9 @@ public static class Informations
         return index;
     }
 
+    /// <summary>
+    /// 交換兩個槽位元的內容。
+    /// </summary>
     public static void SwapContainers(int from, int to)
     {
         if (from < 0 || from >= Containers.Count || to < 0 || to >= Containers.Count) return;
@@ -217,6 +240,9 @@ public static class Informations
          Containers[to].OriginalPrefab, Containers[from].OriginalPrefab);
     }
 
+    /// <summary>
+    /// 強制刷新背包 UI。
+    /// </summary>
     public static void RefreshContainers()
     {
         if (Containers == null) return;
@@ -236,78 +262,108 @@ public static class Informations
         }
     }
 
+    /// <summary>
+    /// 在玩家位置前方丟棄當前選中的物品。
+    /// </summary>
     public static bool DropSelectedItem(float dropDistance = 1.5f)
     {
-        Debug.Log("=== DropSelectedItem 開始 ===");
-
         if (Containers == null || selectedContainer < 0 || selectedContainer >= Containers.Count)
-        {
-            Debug.LogError($"容器檢查失敗: Containers={Containers}, selectedContainer={selectedContainer}");
             return false;
-        }
 
         var slot = Containers[selectedContainer];
-        Debug.Log($"選中的槽位: {selectedContainer}");
-        Debug.Log($"ItemObject: {(slot.ItemObject ? slot.ItemObject.name : "NULL")}");
-        Debug.Log($"OriginalPrefab: {(slot.OriginalPrefab ? slot.OriginalPrefab.name : "NULL")}");
-        Debug.Log($"Player: {(Player ? Player.name : "NULL")}");
-
         if (slot.ItemObject == null || slot.OriginalPrefab == null || !Player)
-        {
-            Debug.LogError("必要物件為 NULL，無法丟棄");
             return false;
-        }
 
         Vector3 dropPos = Player.transform.position + Player.transform.right * dropDistance;
-        Debug.Log($"丟棄位置: {dropPos}");
 
         GameObject droppedItem = Object.Instantiate(slot.OriginalPrefab, dropPos, Quaternion.identity);
         droppedItem.SetActive(true);
         droppedItem.transform.SetParent(null);
-        Debug.Log($"已生成物品: {droppedItem.name}");
 
+        // 同步 Pickup 資訊
         var allPickups = droppedItem.GetComponentsInChildren<ItemWorldPickup>(true);
-        Debug.Log($"找到 {allPickups.Length} 個 ItemWorldPickup 組件");
-
         foreach (var pickup in allPickups)
         {
             pickup.itemPrefab = slot.OriginalPrefab;
             pickup.enabled = true;
-            Debug.Log($"設定 {pickup.gameObject.name} 的 itemPrefab 為 {slot.OriginalPrefab.name}");
         }
 
+        // 啟動所有碰撞體
         var cols = droppedItem.GetComponentsInChildren<Collider2D>(true);
-        Debug.Log($"找到 {cols.Length} 個 Collider2D");
-
         foreach (var col in cols)
         {
-            if (col.isTrigger)
-            {
-                col.enabled = true;
-                Debug.Log($"啟用 {col.gameObject.name} 的 Collider2D");
-            }
+            if (col.isTrigger) col.enabled = true;
         }
 
         Object.Destroy(slot.ItemObject);
-        Debug.Log($"已銷毀玩家身上的 {slot.ItemObject.name}");
 
         slot.ItemObject = null;
         slot.ItemPreviewImage = null;
         slot.OriginalPrefab = null;
 
         RefreshContainers();
-        Debug.Log("=== DropSelectedItem 成功 ===");
+        
+        if (ShowDebug) Debug.Log($"[Informations] 丟棄物品成功。");
         return true;
     }
 
+    /// <summary>
+    /// 對玩家造成傷害（或補血）。
+    /// </summary>
+    /// <param name=\"damageAmount\">傷害數值，正數為扣血，負數為補血。</param>
     public static void PlayerGetDamage(float damageAmount, bool isRealDamage = false, GameObject sourceObject = null)
         => Player.GetComponent<Player>().GetDamage(damageAmount, isRealDamage, sourceObject);
+
+    /// <summary>
+    /// 重置全域遊戲狀態（生命、彈藥、背包等）。通常在重新開始遊戲時使用。
+    /// </summary>
+    public static void ResetGameState()
+    {
+        // 重置數值
+        Heart = 100;
+        BatteryPower = 100;
+        Kerosene = 100;
+        Armor = 100;
+
+        // 同步你最新修改的初始彈藥數 (20)
+        Ammo_Pistol = 20;
+        Ammo_Rifles = 20;
+        Arrows = 20;
+
+        // 重要：清空舊場景的物件參考，強制新場景重新搜尋
+        player = null;
+        weaponsParent = null; 
+        propsParent = null;
+
+        // 清空背包中的物件
+        if (Containers != null)
+        {
+            foreach (var container in Containers)
+            {
+                if (container != null && container.ItemObject != null) 
+                    Object.Destroy(container.ItemObject);
+                
+                if (container != null)
+                {
+                    container.ItemObject = null;
+                    container.ItemPreviewImage = null;
+                    container.OriginalPrefab = null;
+                }
+            }
+        }
+
+        RefreshContainers();
+        if (ShowDebug) Debug.Log("[Informations] 遊戲狀態已完全重置。");
+    }
 }
 
+/// <summary>
+/// 代表背包槽位的資料容器。
+/// </summary>
 public class Container
 {
-    public Transform ContainerObject;
-    public GameObject ItemObject = null;
-    public Sprite ItemPreviewImage = null;
-    public GameObject OriginalPrefab = null;
+    public Transform ContainerObject; // UI 容器物件
+    public GameObject ItemObject = null; // 實例化在玩家身上的物件
+    public Sprite ItemPreviewImage = null; // UI 顯示圖示
+    public GameObject OriginalPrefab = null; // 原始 Prefab，用於丟棄時生成
 }

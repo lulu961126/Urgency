@@ -2,44 +2,48 @@
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
+/// <summary>
+/// 玩家核心控制腳本，處理移動、旋轉、相機跟隨，以及生命、護甲、電池與煤油等資源管理。
+/// </summary>
 public class Player : MonoBehaviour, IDamageable
 {
-    [SerializeField] private float Speed;
+    [Header("Movement")]
+    [SerializeField] private float Speed = 5f;
 
-    [Header("Battery")]
-    [SerializeField] private float BatteryMaxPower;
-    [SerializeField] private float BatteryPowerEachStage;
-    [SerializeField] private float PowerLeftLengthMagnification;
-    [SerializeField] private float PowerLeakTime;
+    [Header("Battery (Flashlight)")]
+    [SerializeField] private float BatteryMaxPower = 100f;
+    [SerializeField] private float BatteryPowerEachStage = 20f;
+    [SerializeField] private float PowerLeftLengthMagnification = 1f;
+    [SerializeField] private float PowerLeakTime = 1f;
     [Range(0f, 0.99f)]
-    [SerializeField] private float BatteryThreshold;
-    public float PowerLeakAmount;
+    [SerializeField] private float BatteryThreshold = 0.8f;
+    public float PowerLeakAmount = 0.5f;
     private GameObject powerLeftObject;
 
-    [Header("Kerosene")]
-    [SerializeField] private float LanternMaxKerosene;
-    [SerializeField] private float LanternKeroseneEachStage;
-    [SerializeField] private float KeroseneLeftLengthMagnification;
-    [SerializeField] private float KeroseneLeakTime;
+    [Header("Kerosene (Lantern)")]
+    [SerializeField] private float LanternMaxKerosene = 100f;
+    [SerializeField] private float LanternKeroseneEachStage = 20f;
+    [SerializeField] private float KeroseneLeftLengthMagnification = 1f;
+    [SerializeField] private float KeroseneLeakTime = 1f;
     [Range(0f, 0.99f)]
-    [SerializeField] private float KeroseneThreshold;
-    public float KeroseneLeakAmount;
+    [SerializeField] private float KeroseneThreshold = 0.8f;
+    public float KeroseneLeakAmount = 0.3f;
     private GameObject keroseneLeftObject;
 
-    [Header("Heart")]
-    [SerializeField] private float MaxHeart;
-    [SerializeField] private float HeartLeftMagnification;
-    [SerializeField] private float HeartRegenerationTime;
-    [SerializeField] private float HeartRegenerationAmount;
-    [Tooltip("Suggestion: 0.33 (Green)")][SerializeField] private float HeartLeftMaxHue;
-    [Tooltip("Suggestion: 0 (Red)")][SerializeField] private float HeartLeftMinHue;
+    [Header("Health (Heart)")]
+    [SerializeField] private float MaxHeart = 100f;
+    [SerializeField] private float HeartLeftMagnification = 1f;
+    [SerializeField] private float HeartRegenerationTime = 2f;
+    [SerializeField] private float HeartRegenerationAmount = 1f;
+    [Tooltip("綠色 Hue 參考值: 0.33")] [SerializeField] private float HeartLeftMaxHue = 0.33f;
+    [Tooltip("紅色 Hue 參考值: 0")] [SerializeField] private float HeartLeftMinHue = 0f;
     private GameObject heartLeftObject;
 
     [Header("Armor")]
-    [SerializeField] private float MaxArmor;
-    [SerializeField] private float ArmorLeftMagnification;
+    [SerializeField] private float MaxArmor = 100f;
+    [SerializeField] private float ArmorLeftMagnification = 1f;
     [Range(0.001f, 0.999f)]
-    [SerializeField] private float DamageReducePercentage;
+    [SerializeField] private float DamageReducePercentage = 0.5f;
     private GameObject armorLeftObject;
 
     private float _powerLeakDeltaTime;
@@ -49,7 +53,7 @@ public class Player : MonoBehaviour, IDamageable
     private Rigidbody2D _rigidbody2D;
     private Transform _cameraTransform;
     
-    // 擊退系統
+    // 擊退系統變數
     private bool isKnockbacking = false;
     private float knockbackDistance;
     private float knockbackVelocity;
@@ -58,6 +62,7 @@ public class Player : MonoBehaviour, IDamageable
 
     private void Awake()
     {
+        // 鎖定 FPS
         Application.targetFrameRate = 120;
     }
 
@@ -67,12 +72,14 @@ public class Player : MonoBehaviour, IDamageable
         _cameraTransform ??= GameObject.FindWithTag("MainCamera").GetComponent<Transform>();
         actions = Inputs.Actions;
         actions.Player.Enable();
+        
+        // UI 物件快取
         powerLeftObject ??= GameObject.FindWithTag("PowerLeft");
         keroseneLeftObject ??= GameObject.FindWithTag("KeroseneLeft");
         heartLeftObject ??= GameObject.FindWithTag("HeartLeft");
         armorLeftObject ??= GameObject.FindWithTag("ArmorLeft");
 
-        // 確保剛體旋轉是被鎖定的，避免擊退時自旋
+        // 固定 Z 軸旋轉
         if (_rigidbody2D != null) _rigidbody2D.constraints = RigidbodyConstraints2D.FreezeRotation;
     }
 
@@ -83,7 +90,7 @@ public class Player : MonoBehaviour, IDamageable
 
     private void Update()
     {
-        // 擊退狀態檢查邏輯保持在 Update
+        // 擊退完成判斷
         if (isKnockbacking)
         {
             if (Vector2.Distance(originalPosition, transform.position) >= knockbackDistance)
@@ -97,18 +104,20 @@ public class Player : MonoBehaviour, IDamageable
         CameraPositionUpdate();
         HeartUpdate();
         ArmorUpdate();
-        foreach (Transform transform in transform)
+        
+        // 更新並檢測資源(手電筒/馬燈)
+        foreach (Transform child in transform)
         {
-            if (transform.CompareTag("BatteryFlashlight"))
+            if (child.CompareTag("BatteryFlashlight"))
             {
-                transform.gameObject.SetActive(true);
-                BatteryUpdate(transform.gameObject);
+                child.gameObject.SetActive(true);
+                BatteryUpdate(child.gameObject);
                 continue;
             }
-            if (transform.CompareTag("Lantern"))
+            if (child.CompareTag("Lantern"))
             {
-                transform.gameObject.SetActive(true);
-                LanternOilUpdate(transform.gameObject);
+                child.gameObject.SetActive(true);
+                LanternOilUpdate(child.gameObject);
                 continue;
             }
         }
@@ -117,7 +126,7 @@ public class Player : MonoBehaviour, IDamageable
 
     private void FixedUpdate() 
     {
-        // 如果正在擊退，套用擊退速度，不讀取玩家輸入
+        // 如果正在擊退，則執行擊退位移
         if (isKnockbacking)
         {
             _rigidbody2D.linearVelocity = knockbackDir * knockbackVelocity;
@@ -128,11 +137,26 @@ public class Player : MonoBehaviour, IDamageable
         }
     }
 
-    private void MovementUpdate() => _rigidbody2D.linearVelocity = actions.Player.Move.ReadValue<Vector2>() * Speed;
+    /// <summary>
+    /// 更新玩家移動速度。
+    /// </summary>
+    private void MovementUpdate()
+    {
+        if (QTEStatus.IsInQTE)
+        {
+            _rigidbody2D.linearVelocity = Vector2.zero;
+            return;
+        }
+        _rigidbody2D.linearVelocity = actions.Player.Move.ReadValue<Vector2>() * Speed;
+    }
 
+    /// <summary>
+    /// 使玩家面向滑鼠位置。
+    /// </summary>
     private void RotationUpdate()
     {
-        var mousePos = Camera.main!.ScreenToWorldPoint(Mouse.current.position.ReadValue());
+        if (Camera.main == null || QTEStatus.IsInQTE) return;
+        var mousePos = Camera.main.ScreenToWorldPoint(Mouse.current.position.ReadValue());
         mousePos.z = 0;
         var diff = (mousePos - transform.position).normalized;
         var atan = Mathf.Atan2(diff.y, diff.x);
@@ -140,14 +164,22 @@ public class Player : MonoBehaviour, IDamageable
         transform.rotation = Quaternion.Euler(0, 0, atan - 90);
     }
 
-    private void CameraPositionUpdate() => _cameraTransform.position = new Vector3(transform.position.x, transform.position.y, -10);
+    /// <summary>
+    /// 更新相機跟隨。
+    /// </summary>
+    private void CameraPositionUpdate() 
+    {
+        if (_cameraTransform != null)
+            _cameraTransform.position = new Vector3(transform.position.x, transform.position.y, -10);
+    }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
         switch (other.tag)
         {
             case "Exit":
-                Debug.Log("End");
+                if (Informations.ShowDebug) Debug.Log("[Player] 到達終點，切換至結束畫面");
+                GameSceneManager.Instance.LoadVictoryScene();
                 break;
 
             case "SmallBattery":
@@ -168,6 +200,9 @@ public class Player : MonoBehaviour, IDamageable
         }
     }
 
+    /// <summary>
+    /// 取得電池能量。
+    /// </summary>
     private void GetBattery(float power, GameObject obj, bool ignoreThereshold = false)
     {
         if (ignoreThereshold == false)
@@ -178,6 +213,9 @@ public class Player : MonoBehaviour, IDamageable
         Destroy(obj);
     }
 
+    /// <summary>
+    /// 取得煤油。
+    /// </summary>
     private void GetKerosene(float amount, GameObject obj, bool ignoreThereshold = false)
     {
         if (ignoreThereshold == false)
@@ -188,40 +226,51 @@ public class Player : MonoBehaviour, IDamageable
         Destroy(obj);
     }
 
+    /// <summary>
+    /// 處理電池消耗與 UI 更新。
+    /// </summary>
     private void BatteryUpdate(GameObject obj)
     {
         _powerLeakDeltaTime += Time.deltaTime;
         float proportion = Informations.BatteryPower / BatteryMaxPower;
-        powerLeftObject.transform.localScale = new Vector3(proportion * PowerLeftLengthMagnification, 1, 1);
+        if (powerLeftObject)
+            powerLeftObject.transform.localScale = new Vector3(proportion * PowerLeftLengthMagnification, 1, 1);
+            
         if (_powerLeakDeltaTime >= PowerLeakTime)
         {
             Informations.BatteryPower -= PowerLeakAmount;
-            Informations.BatteryPower = Mathf.Clamp(Informations.BatteryPower, 0, BatteryMaxPower);
+            Informations.BatteryPower = Mathf.Max(0, Informations.BatteryPower);
             _powerLeakDeltaTime -= PowerLeakTime;
         }
         if (Informations.BatteryPower <= 0) obj.SetActive(false);
     }
 
+    /// <summary>
+    /// 處理煤油消耗與 UI 更新。
+    /// </summary>
     private void LanternOilUpdate(GameObject obj)
     {
         _keroseneLeakDeltaTime += Time.deltaTime;
         float proportion = Informations.Kerosene / LanternMaxKerosene;
-        keroseneLeftObject.transform.localScale = new Vector3(proportion * KeroseneLeftLengthMagnification, 1, 1);
+        if (keroseneLeftObject)
+            keroseneLeftObject.transform.localScale = new Vector3(proportion * KeroseneLeftLengthMagnification, 1, 1);
+            
         if (_keroseneLeakDeltaTime >= KeroseneLeakTime)
         {
             Informations.Kerosene -= KeroseneLeakAmount;
-            Informations.Kerosene = Mathf.Clamp(Informations.Kerosene, 0, LanternMaxKerosene);
+            Informations.Kerosene = Mathf.Max(0, Informations.Kerosene);
             _keroseneLeakDeltaTime -= KeroseneLeakTime;
         }
         if (Informations.Kerosene <= 0) obj.SetActive(false);
     }
 
-    // 實作 IDamageable 介面
+    /// <summary>
+    /// 實作 IDamageable 介面，處理受傷與擊退。
+    /// </summary>
     public void TakeDamage(float damage, float knockbackDistance, float knockbackVelocity, Vector2 sourcePosition)
     {
         GetDamage(damage, false, null);
         
-        // 玩家擊退
         if (knockbackDistance > 0)
         {
             this.knockbackDir = ((Vector2)transform.position - sourcePosition).normalized;
@@ -234,9 +283,16 @@ public class Player : MonoBehaviour, IDamageable
 
     public GameObject GetGameObject() => gameObject;
 
+    /// <summary>
+    /// 核心受傷邏輯，包含護甲吸收計算。
+    /// </summary>
     public void GetDamage(float damageAmount, bool isRealDamage = false, GameObject sourceObject = null)
     {
-        // 如果是真實傷害（無視護甲），直接扣血
+        // 如果正在 QTE，受傷則判定 QTE 失敗
+        if (QTEStatus.IsInQTE && damageAmount > 0)
+        {
+            QTEStatus.OnQTEForceFail?.Invoke();
+        }
         if (isRealDamage)
         {
             Informations.Heart -= damageAmount;
@@ -244,20 +300,15 @@ public class Player : MonoBehaviour, IDamageable
             return;
         }
 
-        // 有護甲時，優先扣護甲
         if (Informations.Armor > 0)
         {
-            // 可選：護甲可以減少受到的傷害（移除這行則護甲1:1吸收傷害）
             float damageToArmor = damageAmount * (1 - DamageReducePercentage);
-            
             if (Informations.Armor >= damageToArmor)
             {
-                // 護甲足夠吸收所有傷害
                 Informations.Armor -= damageToArmor;
             }
             else
             {
-                // 護甲不足，溢出的傷害扣血量
                 float remainingDamage = damageToArmor - Informations.Armor;
                 Informations.Armor = 0;
                 Informations.Heart -= remainingDamage;
@@ -265,37 +316,49 @@ public class Player : MonoBehaviour, IDamageable
         }
         else
         {
-            // 沒有護甲，直接扣血
             Informations.Heart -= damageAmount;
         }
 
-        // 確保血量不會變成負數
         Informations.Heart = Mathf.Max(0, Informations.Heart);
     }
 
+    /// <summary>
+    /// 生命值回覆與 UI 血條更新。
+    /// </summary>
     private void HeartUpdate()
     {
         _heartRegenerationDeltaTime += Time.deltaTime;
         if (_heartRegenerationDeltaTime >= HeartRegenerationTime)
         {
             Informations.Heart += HeartRegenerationAmount;
+            Informations.Heart = Mathf.Min(Informations.Heart, MaxHeart);
             _heartRegenerationDeltaTime -= HeartRegenerationTime;
         }
 
         float proportion = Informations.Heart / MaxHeart;
         proportion = Mathf.Clamp01(proportion);
-        heartLeftObject.transform.localScale = new Vector3(proportion * HeartLeftMagnification, 1, 1);
-        heartLeftObject.GetComponent<Image>().color = Color.HSVToRGB(Mathf.Lerp(HeartLeftMinHue, HeartLeftMaxHue, proportion), 0.4f, 1.0f);
+        
+        if (heartLeftObject)
+        {
+            heartLeftObject.transform.localScale = new Vector3(proportion * HeartLeftMagnification, 1, 1);
+            Image img = heartLeftObject.GetComponent<Image>();
+            if (img) img.color = Color.HSVToRGB(Mathf.Lerp(HeartLeftMinHue, HeartLeftMaxHue, proportion), 0.4f, 1.0f);
+        }
 
         if (Informations.Heart <= 0)
         {
-            //TODO: End
+            if (Informations.ShowDebug) Debug.Log("[Player] 玩家死亡，切換至死亡畫面");
+            GameSceneManager.Instance.LoadDeathScene();
         }
     }
 
+    /// <summary>
+    /// 更新護甲 UI。
+    /// </summary>
     private void ArmorUpdate()
     {
         float proportion = Informations.Armor / MaxArmor;
-        armorLeftObject.transform.localScale = new Vector3(proportion * ArmorLeftMagnification, 1, 1);
+        if (armorLeftObject)
+            armorLeftObject.transform.localScale = new Vector3(proportion * ArmorLeftMagnification, 1, 1);
     }
 }
