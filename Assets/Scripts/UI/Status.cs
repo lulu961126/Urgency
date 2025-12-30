@@ -8,23 +8,23 @@ public class Status : MonoBehaviour
     [SerializeField] private List<TargetCoords> PresetCoords = new List<TargetCoords>();
     [SerializeField] private Transform Player;
 
-    private void Start() => InitializeTargetCoords();
+    //private void Start() => InitializeTargetCoords();
     
-    private void InitializeTargetCoords()
-    {
-        foreach (var tc in PresetCoords)
-        {
-            var obj = Instantiate(tc.Target);
-            obj.transform.position = Player.position;
-            obj.transform.localPosition = new Vector3(0, 0, 0);
-            TargetCoords.Add(new TargetCoords
-            {
-                Position = tc.Position,
-                Target = obj,
-                Name = tc.Name,
-            });
-        }
-    }
+    //private void InitializeTargetCoords()
+    //{
+    //    foreach (var tc in PresetCoords)
+    //    {
+    //        var obj = Instantiate(tc.Target);
+    //        obj.transform.position = Player.position;
+    //        obj.transform.localPosition = new Vector3(0, 0, 0);
+    //        TargetCoords.Add(new TargetCoords
+    //        {
+    //            Position = tc.Position,
+    //            Target = obj,
+    //            Name = tc.Name,
+    //        });
+    //    }
+    //}
     
     public void AddCoord(Vector2 position, GameObject prefab, string coordName)
     {

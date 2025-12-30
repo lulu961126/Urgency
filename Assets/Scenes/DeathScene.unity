@@ -903,7 +903,7 @@ MonoBehaviour:
   duration: 0.2
   hoverSound: {fileID: 0}
   clickSound: {fileID: 8300000, guid: 123eb5fd30567bb4cac806a323e298b1, type: 3}
-  soundVolume: 0.7
+  soundVolume: 0.3
   objectsToEnableOnHover:
   - {fileID: 0}
   objectsToDisableOnHover: []
@@ -1572,7 +1572,7 @@ MonoBehaviour:
   duration: 0.2
   hoverSound: {fileID: 0}
   clickSound: {fileID: 8300000, guid: 123eb5fd30567bb4cac806a323e298b1, type: 3}
-  soundVolume: 0.7
+  soundVolume: 0.3
   objectsToEnableOnHover: []
   objectsToDisableOnHover: []
 --- !u!222 &1797585906
@@ -2123,7 +2123,7 @@ MonoBehaviour:
   duration: 0.2
   hoverSound: {fileID: 0}
   clickSound: {fileID: 8300000, guid: 123eb5fd30567bb4cac806a323e298b1, type: 3}
-  soundVolume: 0.7
+  soundVolume: 0.3
   objectsToEnableOnHover:
   - {fileID: 572634280}
   objectsToDisableOnHover: []

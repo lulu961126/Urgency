@@ -152,6 +152,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HealthPickup2D
   healAmount: 20
   useNegativeDamageViaInformations: 0
-  maxHeart: 100
+  maxHeart: 200
+  pickupThreshold: 0.8
   playerTag: Player
   destroyOnPickup: 1

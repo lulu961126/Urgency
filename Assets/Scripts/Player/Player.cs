@@ -31,6 +31,7 @@ public class Player : MonoBehaviour, IDamageable
     private GameObject keroseneLeftObject;
 
     [Header("Health (Heart)")]
+    [SerializeField] private float DefaultMaxHeart;
     [SerializeField] private float MaxHeart = 100f;
     [SerializeField] private float HeartLeftMagnification = 1f;
     [SerializeField] private float HeartRegenerationTime = 2f;
@@ -81,6 +82,8 @@ public class Player : MonoBehaviour, IDamageable
 
         // 固定 Z 軸旋轉
         if (_rigidbody2D != null) _rigidbody2D.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+        Informations.Heart = DefaultMaxHeart;
     }
 
     private void OnDisable()
