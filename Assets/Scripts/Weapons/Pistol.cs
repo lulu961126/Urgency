@@ -21,6 +21,18 @@ public class Pistol : MonoBehaviour
     [SerializeField] private GameObject BulletObject;
     [SerializeField] private Vector3 PositionOffset;
 
+    [Header("Muzzle Flash Settings")]
+    [Tooltip("槍口火光物件 (需掛載 MuzzleFlash 腳本)")]
+    [SerializeField] private MuzzleFlash muzzleFlash;
+    [Tooltip("若未指定 MuzzleFlash，可直接指定火光 Sprite")]
+    [SerializeField] private SpriteRenderer muzzleFlashSprite;
+    [Tooltip("火光顯示持續時間 (當使用 Sprite 時)")]
+    [SerializeField] private float flashDuration = 0.05f;
+    [Tooltip("火光相對於槍口的位置偏移")]
+    [SerializeField] private Vector3 muzzleFlashOffset = Vector3.zero;
+    [Tooltip("火光的旋轉角度 (Z軸)")]
+    [SerializeField] private float muzzleFlashRotation = 0f;
+
     [Header("Audio Settings")]
     [SerializeField] private AudioClip ShootingAudioClip;
     [SerializeField] private AudioClip NoAmmoAudioClip;
@@ -44,6 +56,9 @@ public class Pistol : MonoBehaviour
     private Collider2D[] playerColliders; 
     private Action<InputAction.CallbackContext> Trigger;
     private Action<InputAction.CallbackContext> TriggerLeave;
+    
+    // 簡易火光計時器 (當只使用 SpriteRenderer 時)
+    private float simpleFlashTimer = 0f;
 
     /// <summary>
     /// 取得或設定當前武器類型的全域彈藥數。
@@ -94,6 +109,9 @@ public class Pistol : MonoBehaviour
 
         // 每影格更新 UI 數值
         UpdateAmmoUI();
+
+        // 更新簡易火光計時器
+        UpdateSimpleFlash();
 
         // 處理自動射擊
         if (isHolding && elapsed >= Cooldown)
@@ -154,6 +172,53 @@ public class Pistol : MonoBehaviour
         {
             float globalSFX = SoundManager.Instance != null ? SoundManager.Instance.GetVolume() : 1f;
             AudioSource.PlayClipAtPoint(ShootingAudioClip, transform.position, shootingVolume * globalSFX);
+        }
+
+        // 觸發槍口火光
+        TriggerMuzzleFlash();
+    }
+
+    /// <summary>
+    /// 觸發槍口火光效果。
+    /// </summary>
+    private void TriggerMuzzleFlash()
+    {
+        // 只有在玩家手中時才顯示火光（地板上不顯示）
+        if (!IsUnderPlayerWeapons()) return;
+
+        // 優先使用 MuzzleFlash 腳本
+        if (muzzleFlash != null)
+        {
+            // 套用位置偏移和旋轉角度
+            muzzleFlash.transform.localPosition = muzzleFlashOffset;
+            muzzleFlash.transform.localRotation = Quaternion.Euler(0, 0, muzzleFlashRotation);
+            muzzleFlash.Show();
+            return;
+        }
+
+        // 備用方案：直接控制 SpriteRenderer
+        if (muzzleFlashSprite != null)
+        {
+            // 套用位置偏移和旋轉角度
+            muzzleFlashSprite.transform.localPosition = muzzleFlashOffset;
+            muzzleFlashSprite.transform.localRotation = Quaternion.Euler(0, 0, muzzleFlashRotation);
+            muzzleFlashSprite.enabled = true;
+            simpleFlashTimer = flashDuration;
+        }
+    }
+
+    /// <summary>
+    /// 更新簡易火光計時器 (當只使用 SpriteRenderer 時)。
+    /// </summary>
+    private void UpdateSimpleFlash()
+    {
+        if (simpleFlashTimer > 0)
+        {
+            simpleFlashTimer -= Time.deltaTime;
+            if (simpleFlashTimer <= 0 && muzzleFlashSprite != null)
+            {
+                muzzleFlashSprite.enabled = false;
+            }
         }
     }
 

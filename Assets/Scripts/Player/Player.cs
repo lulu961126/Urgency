@@ -31,7 +31,7 @@ public class Player : MonoBehaviour, IDamageable
     private GameObject keroseneLeftObject;
 
     [Header("Health (Heart)")]
-    [SerializeField] private float DefaultMaxHeart;
+    [SerializeField] private float DefaultMaxHeart = 100f;
     [SerializeField] private float MaxHeart = 100f;
     [SerializeField] private float HeartLeftMagnification = 1f;
     [SerializeField] private float HeartRegenerationTime = 2f;
