@@ -357,3 +357,18 @@ Assets\Scripts\Weapons\Pistol.cs(196,80): error CS0104: 'Random' is an ambiguous
 
 火光的圖片會亂轉，請讓它固定並可以在inspector中設定
 
+我想要在boss上面加上一個設定，因為我想要拍影片，所以我要他可以自己走到某一個定點，一樣在inspector中設定。我的boss就是ranged zombie，請你幫我看一下
+
+NullReferenceException: Object reference not set to an instance of an object
+UnityEditor.Graphs.Edge.WakeUp () (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+UnityEditor.Graphs.Graph.DoWakeUpEdges (System.Collections.Generic.List`1[T] inEdges, System.Collections.Generic.List`1[T] ok, System.Collections.Generic.List`1[T] error, System.Boolean inEdgesUsedToBeValid) (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+UnityEditor.Graphs.Graph.WakeUpEdges (System.Boolean clearSlotEdges) (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+UnityEditor.Graphs.Graph.WakeUp (System.Boolean force) (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+UnityEditor.Graphs.Graph.WakeUp () (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+UnityEditor.Graphs.Graph.OnEnable () (at <068bc2df3ec8480eb063bb21ae89b714>:0)
+
+Assets\Scripts\Weapons\MuzzleFlash.cs(14,35): warning CS0414: The field 'MuzzleFlash.randomRotation' is assigned but its value is never used
+
+Assets\Scripts\Object\DoorController.cs(110,24): warning CS0618: 'Object.FindObjectOfType<T>()' is obsolete: 'Object.FindObjectOfType has been deprecated. Use Object.FindFirstObjectByType instead or if finding any instance is acceptable the faster Object.FindAnyObjectByType'
+
+information這個程式他可以在外面的inspector之類的調整嗎，就是可以不用進到程式碼裡面去調整

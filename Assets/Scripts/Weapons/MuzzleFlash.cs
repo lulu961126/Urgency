@@ -10,9 +10,6 @@ public class MuzzleFlash : MonoBehaviour
     [Tooltip("火光顯示持續時間 (秒)")]
     [SerializeField] private float flashDuration = 0.05f;
     
-    [Tooltip("是否隨機旋轉火光角度")]
-    [SerializeField] private bool randomRotation = true;
-    
     [Tooltip("是否隨機縮放火光大小")]
     [SerializeField] private bool randomScale = true;
     

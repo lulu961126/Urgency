@@ -88,6 +88,20 @@ public class RangedZombie : MonoBehaviour, IDamageable
     [SerializeField] private float stuckTimeThreshold = 0.3f;
     [SerializeField] private Vector2 escapeAngleRange = new Vector2(90f, 150f);
 
+    [Header("Cinematic Mode (影片模式)")]
+    [Tooltip("啟用影片模式後，Boss 會忽略玩家並走向指定的目標點")]
+    [SerializeField] private bool cinematicMode = false;
+    [Tooltip("Boss 要走到的目標位置")]
+    [SerializeField] private Vector2 cinematicTargetPosition;
+    [Tooltip("到達目標後是否停止")]
+    [SerializeField] private bool stopAtTarget = true;
+    [Tooltip("到達目標的判定距離")]
+    [SerializeField] private float arrivalDistance = 0.3f;
+    [Tooltip("影片模式下的移動速度 (0 = 使用預設速度)")]
+    [SerializeField] private float cinematicSpeed = 0f;
+    [Tooltip("是否面向移動方向")]
+    [SerializeField] private bool faceMoveDirection = true;
+
     // 內部狀態與參考
     private Canvas canvas;
     private GameObject statusBar;
@@ -115,6 +129,9 @@ public class RangedZombie : MonoBehaviour, IDamageable
     private float myRadius = 0.3f;
     private bool isPerformingRangedAttack = false;
     private bool bossBarVisible = false;
+    
+    // 影片模式狀態
+    private bool hasArrivedAtTarget = false;
 
     private void Start()
     {
@@ -223,6 +240,14 @@ public class RangedZombie : MonoBehaviour, IDamageable
 
     private void ProcessAIBehavior()
     {
+        // === 影片模式 ===
+        if (cinematicMode)
+        {
+            ProcessCinematicMode();
+            return;
+        }
+
+        // === 正常 AI 邏輯 ===
         if (Informations.Player == null) return;
         Vector2 dirToPlayer = (Informations.PlayerPosition - (Vector2)transform.position).normalized;
         float distance = Vector2.Distance(transform.position, Informations.PlayerPosition);
@@ -508,6 +533,78 @@ public class RangedZombie : MonoBehaviour, IDamageable
         Gizmos.DrawWireSphere(transform.position, rangedAttackMaxDistance);
         Gizmos.color = new Color(0f, 0.5f, 1f, 0.2f);
         Gizmos.DrawWireSphere(transform.position, rangedAttackMinDistance);
+        
+        // 顯示影片模式目標點
+        if (cinematicMode)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(cinematicTargetPosition, arrivalDistance);
+            Gizmos.DrawLine(transform.position, cinematicTargetPosition);
+        }
     }
 #endif
+
+    /// <summary>
+    /// 處理影片模式的移動邏輯。
+    /// </summary>
+    private void ProcessCinematicMode()
+    {
+        Vector2 currentPos = transform.position;
+        float distanceToTarget = Vector2.Distance(currentPos, cinematicTargetPosition);
+
+        // 檢查是否已到達目標
+        if (distanceToTarget <= arrivalDistance)
+        {
+            hasArrivedAtTarget = true;
+            if (stopAtTarget)
+            {
+                rb2D.linearVelocity = Vector2.zero;
+                UpdateAnimation(false, Vector2.zero);
+                return;
+            }
+        }
+
+        // 計算移動方向
+        Vector2 dirToTarget = (cinematicTargetPosition - currentPos).normalized;
+        
+        // 使用影片模式速度或預設速度
+        float moveSpeed = cinematicSpeed > 0 ? cinematicSpeed : Velocity;
+        
+        // 移動
+        rb2D.linearVelocity = dirToTarget * moveSpeed;
+        UpdateAnimation(true, dirToTarget);
+
+        // 面向移動方向
+        if (faceMoveDirection && dirToTarget.sqrMagnitude > 0.001f)
+        {
+            float targetAngle = Mathf.Atan2(dirToTarget.y, dirToTarget.x) * Mathf.Rad2Deg - forwardAngleOffset;
+            transform.rotation = Quaternion.Euler(0, 0, Mathf.LerpAngle(transform.eulerAngles.z, targetAngle, rotationSpeed * Time.deltaTime));
+        }
+    }
+
+    /// <summary>
+    /// 設定影片模式的目標位置（可從其他腳本呼叫）。
+    /// </summary>
+    public void SetCinematicTarget(Vector2 target)
+    {
+        cinematicTargetPosition = target;
+        hasArrivedAtTarget = false;
+    }
+
+    /// <summary>
+    /// 啟用或停用影片模式。
+    /// </summary>
+    public void SetCinematicMode(bool enabled)
+    {
+        cinematicMode = enabled;
+        if (!enabled)
+        {
+            hasArrivedAtTarget = false;
+        }
+    }
+
+    /// <summary>
+    /// 檢查是否已到達目標點。
+    /// </summary>
+    public bool HasArrivedAtTarget() => hasArrivedAtTarget;
 }

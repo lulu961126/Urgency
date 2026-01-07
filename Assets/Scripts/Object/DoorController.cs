@@ -106,8 +106,8 @@ public class DoorController : MonoBehaviour
     {
         if (canvas == null)
         {
-            // 使用 FindObjectOfType 以確保與舊版 Unity 相容
-            Canvas c = Object.FindObjectOfType<Canvas>();
+            // 使用 FindFirstObjectByType (Unity 2023+)
+            Canvas c = Object.FindFirstObjectByType<Canvas>();
             if (c != null) canvas = c.transform;
             else canvas = GameObject.FindWithTag("Canvas")?.transform;
         }

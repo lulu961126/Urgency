@@ -74,7 +74,8 @@ public class RoomLightController : MonoBehaviour
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {
-        if (!Informations.ShowGizmos) return;
+        return;
+        //if (!Informations.ShowGizmos) return;
 
         var col = GetComponent<BoxCollider2D>();
         if (col != null)
