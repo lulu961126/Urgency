@@ -441,11 +441,26 @@ public class Zombie : MonoBehaviour, IDamageable
             .OnComplete(() => Destroy(obj)).SetLink(obj);
     }
 
-    private void OnEnable() => canvas ??= GameObject.FindWithTag("Canvas").GetComponent<Canvas>();
+    private void OnEnable()
+    {
+        if (canvas == null)
+        {
+            GameObject canvasObj = GameObject.FindWithTag("Canvas");
+            if (canvasObj != null)
+            {
+                canvas = canvasObj.GetComponent<Canvas>();
+            }
+            else
+            {
+                // 嘗試用其他方式找 Canvas
+                canvas = Object.FindObjectOfType<Canvas>();
+            }
+        }
+    }
 
     private Vector2 WorldToCanva(Vector3 v3)
     {
-        if (Camera.main == null) return Vector2.zero;
+        if (Camera.main == null || canvas == null) return Vector2.zero;
         Vector2 screen = RectTransformUtility.WorldToScreenPoint(Camera.main, v3);
         RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)canvas.transform, screen, null, out Vector2 pos);
         return pos;
